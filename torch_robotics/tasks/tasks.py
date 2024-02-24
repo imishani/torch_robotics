@@ -331,46 +331,72 @@ class PlanningTask(Task):
 class MosaicTask(Task):
     def __init__(
             self,
-            dataset,
+            data,
             obstacle_cutoff_margin=0.01,
             use_occupancy_map=False,
             **kwargs
     ):
         """
-        dataset: dict containing the following
-            - 'occ_map': env.occupancy_map.map_torch,
-            - 'sdf': env.grid_map_sdf_obj_fixed.sdf_tensor,
-            - 'grad_sdf': env.grid_map_sdf_obj_fixed.grad_sdf_tensor,
-            - 'cell_size': env.cell_size,
-            - 'limits': : env.limits
+        data: dict containing the following
+            * 'env':
+                - 'occ_map': occupancy_map.map_torch,
+                - 'sdf': grid_map_sdf_obj_fixed.sdf_tensor,
+                - 'grad_sdf': grid_map_sdf_obj_fixed.grad_sdf_tensor,
+                - 'cell_size': cell_size,
+                - 'limits': : limits
+            * 'mosaics': torch.tensor
+        env,
         robot: Robot
         tensor_args: dict
         **kwargs
         """
         super().__init__(**kwargs)
-        self.dataset = dataset
+        self.data = data
+        if self.env is None:
+            raise ValueError("env argument is missing!")
 
+        self.ws_limits = self.data['env']['limits']
+        self.ws_min = self.ws_limits[0]
+        self.ws_max = self.ws_limits[1]
+
+        # Optional: use an occupancy map for collision checking -- useful for sampling-based algorithms
+        # A precomputed collision map is faster when checking for collisions, in comparison to computing the distances
+        # from tasks spaces to objects
         self.use_occupancy_map = use_occupancy_map
 
-        # collision field for workspace boundaries
-        # self.df_collision_ws_boundaries = CollisionWorkspaceBoundariesDistanceField(
-        #     self.robot,
-        #     link_idxs_for_collision_checking=self.robot.link_idxs_for_object_collision_checking,
-        #     num_interpolated_points=self.robot.num_interpolated_points_for_object_collision_checking,
-        #     link_margins_for_object_collision_checking_tensor=self.robot.link_margins_for_object_collision_checking_tensor,
-        #     cutoff_margin=obstacle_cutoff_margin,
-        #     ws_bounds_min=self.ws_min,
-        #     ws_bounds_max=self.ws_max,
-        #     tensor_args=self.tensor_args
-        # )
+        ################################################################################################
+        # Collision fields
+        # collision field for self-collision
+        self.df_collision_self = self.robot.df_collision_self
 
-        # self._collision_fields = [self.df_collision_self, self.df_collision_objects, self.df_collision_ws_boundaries]
+        # collision field for objects TODO: fix this, it feels redundant
+        self.df_collision_objects = CollisionObjectDistanceField(
+            self.robot,
+            df_obj_list_fn=self.env.get_df_obj_list,
+            link_idxs_for_collision_checking=self.robot.link_idxs_for_object_collision_checking,
+            num_interpolated_points=self.robot.num_interpolated_points_for_object_collision_checking,
+            link_margins_for_object_collision_checking_tensor=self.robot.link_margins_for_object_collision_checking_tensor,
+            cutoff_margin=obstacle_cutoff_margin,
+            interpolate_link_pos=not self.robot.use_collision_spheres,
+            tensor_args=self.tensor_args
+        )
+
+        # collision field for workspace boundaries
+        self.df_collision_ws_boundaries = CollisionWorkspaceBoundariesDistanceField(
+            self.robot,
+            link_idxs_for_collision_checking=self.robot.link_idxs_for_object_collision_checking,
+            num_interpolated_points=self.robot.num_interpolated_points_for_object_collision_checking,
+            link_margins_for_object_collision_checking_tensor=self.robot.link_margins_for_object_collision_checking_tensor,
+            cutoff_margin=obstacle_cutoff_margin,
+            ws_bounds_min=self.ws_min,
+            ws_bounds_max=self.ws_max,
+            tensor_args=self.tensor_args
+        )
+
+        self._collision_fields = [self.df_collision_self, self.df_collision_objects, self.df_collision_ws_boundaries]
 
     def get_collision_fields(self):
         return self._collision_fields
-
-    # def get_collision_fields_extra_objects(self):
-    #     return self._collision_fields_extra_objects
 
     def distance_q(self, q1, q2):
         return self.robot.distance_q(q1, q2)
@@ -587,12 +613,17 @@ class MosaicTask(Task):
             return trajs_coll, trajs_coll_idxs, trajs_free, trajs_free_idxs, trajs_waypoints_collisions
         return trajs_coll, trajs_free
 
-    def compute_fraction_free_trajs(self, trajs, **kwargs):
-        # Compute the fractions of trajs that are collision free
-        _, trajs_coll_idxs, _, trajs_free_idxs, _ = self.get_trajs_collision_and_free(trajs, return_indices=True)
-        n_trajs_free = trajs_free_idxs.nelement()
-        n_trajs_coll = trajs_coll_idxs.nelement()
-        return n_trajs_free/(n_trajs_free + n_trajs_coll)
+    def compute_fraction_free_trajs(self, mosaics, **kwargs):
+        prec = 0
+        # loop on the mosaics 0 dim
+        for mos_id in range(mosaics.shape[0]):
+            # Compute the fractions of trajs that are collision free
+            _, trajs_coll_idxs, _, trajs_free_idxs, _ = self.get_trajs_collision_and_free(
+                mosaics[mos_id], return_indices=True)
+            n_trajs_free = trajs_free_idxs.nelement()
+            n_trajs_coll = trajs_coll_idxs.nelement()
+            prec += n_trajs_free / (n_trajs_free + n_trajs_coll)
+        return prec / mosaics.shape[0]
 
     def compute_collision_intensity_trajs(self, trajs, **kwargs):
         # Compute the fraction of waypoints that are in collision
