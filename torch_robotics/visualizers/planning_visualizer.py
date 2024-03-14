@@ -32,7 +32,8 @@ class PlanningVisualizer:
         self.cmaps = {'collision': 'Greys', 'free': 'Oranges'}
         self.cmaps_robot = {'collision': 'Greys', 'free': 'YlOrRd'}
 
-    def render_robot_trajectories(self, fig=None, ax=None, render_planner=False, trajs=None, traj_best=None, **kwargs):
+    def render_robot_trajectories(self, fig=None, ax=None, render_planner=False,
+                                  trajs=None, traj_best=None, **kwargs):
         if fig is None or ax is None:
             fig, ax = create_fig_and_axes(dim=self.env.dim)
 

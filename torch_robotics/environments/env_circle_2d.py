@@ -126,8 +126,8 @@ class EnvRandCircle2D(EnvBase):
                  tensor_args=None,
                  precompute_sdf_obj_fixed=True,
                  sdf_cell_size=0.005,
-                 circle_radius_range=(0.05, 0.3),
-                 n_circles=5,
+                 circle_radius_range=(0.05, 0.5),
+                 n_circles=np.random.randint(1, 15),
                  **kwargs
                  ):
         self.tensor_args = tensor_args

@@ -47,11 +47,11 @@ class GridMapSDF:
         f_grad_sdf = lambda x: self.compute_signed_distance_raw(x).sum()
         sdf_tensor_l = []
         grad_sdf_tensor_l = []
-        # TODO - compute sdf and gradient in batches to prevent memory overflow
-        for i in range(self.points_for_sdf.shape[0]):
+        batch_size = 64
+        for i in range(0, self.points_for_sdf.shape[0], batch_size):
             torch.cuda.empty_cache()
             # sdf
-            points_sdf = self.points_for_sdf[i]
+            points_sdf = self.points_for_sdf[i:i+batch_size]
             sdf_tensor = self.compute_signed_distance_raw(points_sdf)
             sdf_tensor_l.append(sdf_tensor)
             # gradient of sdf
@@ -59,8 +59,8 @@ class GridMapSDF:
             grad_sdf_tensor_l.append(grad_sdf_tensor)
         torch.cuda.empty_cache()
 
-        self.sdf_tensor = torch.stack(sdf_tensor_l, dim=0)
-        self.grad_sdf_tensor = torch.stack(grad_sdf_tensor_l, dim=0)
+        self.sdf_tensor = torch.cat(sdf_tensor_l, dim=0)
+        self.grad_sdf_tensor = torch.cat(grad_sdf_tensor_l, dim=0)
 
     def compute_signed_distance_raw(self, x):
         sdf = None
@@ -90,10 +90,10 @@ class GridMapSDF:
         :param X: Tensor of trajectories, of shape (batch_size, horizon, task_spaces, position_dim)
         :return: collision cost on the trajectories
         """
-        X_in_map = ((X-self.limits[0])/self.map_dim * self.cmap_dim).floor().to(torch.int)
+        X_in_map = ((X-self.limits[0])/self.map_dim * self.cmap_dim).floor().type(torch.LongTensor)
 
         # Project out-of-bounds locations to axis
-        max_idx = torch.tensor(self.points_for_sdf.shape[:-1]).type_as(X_in_map) - 1
+        max_idx = torch.tensor(self.points_for_sdf.shape[:-1])-1
         X_in_map = X_in_map.clamp(torch.zeros_like(max_idx), max_idx)
 
         # SDFs and gradients
@@ -102,14 +102,21 @@ class GridMapSDF:
         # This surrogate has the property
         # surrogate_sdf(x) = sdf(x_detachted)
         # grad_x_surrogate_sdf(x) = grad_sdf(x_detachted)
-        X_in_map_detached = X_in_map.detach()
-        X_query = torch.unbind(X_in_map_detached, dim=-1)
+        try:
+            X_in_map_detached = X_in_map.detach()
+            X_query = X_in_map_detached[..., 0], X_in_map_detached[..., 1]
+            if self.dim == 3:
+                X_query = X_in_map_detached[..., 0], X_in_map_detached[..., 1], X_in_map_detached[..., 2]
 
-        sdf_vals = self.sdf_tensor[X_query]
-        grad_sdf = self.grad_sdf_tensor[X_query]
+            sdf_vals = self.sdf_tensor[X_query]
+            grad_sdf = self.grad_sdf_tensor[X_query]
 
-        X_detached = X.detach()
-        sdf_vals += (X * grad_sdf).sum(-1) - (X_detached * grad_sdf).sum(-1)
+            X_detached = X.detach()
+            sdf_vals += (X * grad_sdf).sum(-1) - (X_detached * grad_sdf).sum(-1)
+
+        except Exception as e:
+            print(e)
+            print(X_in_map)
 
         return sdf_vals
 
