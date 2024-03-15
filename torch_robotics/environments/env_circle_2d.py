@@ -2,7 +2,7 @@ import numpy as np
 import torch
 from matplotlib import pyplot as plt
 
-from torch_robotics.environments.env_base import EnvBase
+from torch_robotics.environments.env_base import EnvBase, EnvEncoderBase
 from torch_robotics.environments.primitives import ObjectField, MultiSphereField, MultiBoxField
 from torch_robotics.environments.utils import create_grid_spheres
 from torch_robotics.robots import RobotPointMass
@@ -127,7 +127,7 @@ class EnvRandCircle2D(EnvBase):
                  precompute_sdf_obj_fixed=True,
                  sdf_cell_size=0.005,
                  circle_radius_range=(0.05, 0.5),
-                 n_circles=np.random.randint(1, 15),
+                 n_circles=np.random.randint(10, 15),
                  **kwargs
                  ):
         self.tensor_args = tensor_args
@@ -243,7 +243,43 @@ class EnvRandCircle2D(EnvBase):
             raise NotImplementedError
 
 
+class EnvRandCircle2DEncoder(EnvEncoderBase):
+
+    def __init__(self,
+                 env: EnvRandCircle2D,
+                 max_encoding_size=(14*2) + 14,
+                 **kwargs):
+        super().__init__(env, **kwargs)
+        self.encoding = None
+        self.max_encoding_size = max_encoding_size
+
+    def encode(self):
+        if self.encoding is not None:
+            return self.encoding
+
+        objs = self.env.get_obj_list()
+        centers = torch.Tensor().to(self.env.tensor_args["device"])
+        radii = torch.Tensor().to(self.env.tensor_args["device"])
+        for obj_field in objs:
+            for obj in obj_field.fields:
+                if isinstance(obj, MultiSphereField):
+                    centers = torch.cat([centers, obj.centers], dim=0)
+                    radii = torch.cat([radii, obj.radii], dim=0)
+        encoded = torch.cat([centers, radii.view(-1, 1)], dim=1)
+        self.encoding = encoded.flatten()
+        # padding
+        self.encoding = torch.cat([self.encoding, torch.zeros(self.max_encoding_size - self.encoding.shape[0],
+                                                              device=self.env.tensor_args["device"])])
+        return self.encoding
+
+
 if __name__ == '__main__':
+    env = EnvRandCircle2D(
+        tensor_args=DEFAULT_TENSOR_ARGS
+    )
+    encder = EnvRandCircle2DEncoder(env)
+    print(encder.encode())
+
     env = EnvCircle2D(
         precompute_sdf_obj_fixed=True,
         sdf_cell_size=0.01,

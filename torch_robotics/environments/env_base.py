@@ -1,5 +1,5 @@
 import itertools
-from abc import ABC
+from abc import ABC, abstractmethod
 
 import numpy as np
 import torch
@@ -275,6 +275,22 @@ class EnvBase(ABC):
         raise NotImplementedError
 
 
+class EnvEncoderBase(ABC):
+    """
+    Base class for environment encoders
+    """
+
+    def __init__(self,
+                 env: EnvBase,
+                 **kwargs):
+        self.env = env
+        self.tensor_args = env.tensor_args
+
+    @abstractmethod
+    def encode(self):
+        raise NotImplementedError
+
+
 if __name__ == '__main__':
     tensor_args = DEFAULT_TENSOR_ARGS
     spheres = MultiSphereField(torch.zeros(2, **tensor_args).view(1, -1),
@@ -290,7 +306,7 @@ if __name__ == '__main__':
     theta = np.deg2rad(45)
     # obj_field.set_position_orientation(pos=[-0.5, 0., 0.])
     # obj_field.set_position_orientation(ori=[np.cos(theta/2), 0, 0, np.sin(theta/2)])
-    obj_field.set_position_orientation(pos=[-0.5, 0., 0.], ori=[np.cos(theta/2), 0, 0, np.sin(theta/2)])
+    obj_field.set_position_orientation(pos=[-0.5, 0., 0.], ori=[np.cos(theta / 2), 0, 0, np.sin(theta / 2)])
 
     ##############################################################################################################
     env = EnvBase(
@@ -312,4 +328,3 @@ if __name__ == '__main__':
     # Render gradient of sdf
     env.render_grad_sdf(ax, fig)
     plt.show()
-
