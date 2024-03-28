@@ -55,6 +55,7 @@ class PlanningVisualizer:
             self, trajs=None, start_state=None, goal_state=None,
             plot_trajs=False,
             n_frames=10,
+            constraints=None,
             **kwargs
     ):
         if trajs is None:
@@ -67,7 +68,13 @@ class PlanningVisualizer:
         trajs_selection = trajs[:, idxs, :]
 
         fig, ax = create_fig_and_axes(dim=self.env.dim)
+
         def animate_fn(i):
+            """
+            Draw all the robots at step i for all trajectories.
+            Also add a robot configuration at any constraints.
+            """
+            print(idxs[i], "/", H, end="\r")
             ax.clear()
             ax.set_title(f"step: {idxs[i]}/{H-1}")
             if plot_trajs:
@@ -94,6 +101,13 @@ class PlanningVisualizer:
                 self.robot.render(ax, start_state, color='green', cmap='Greens')
             if goal_state is not None:
                 self.robot.render(ax, goal_state, color='purple', cmap='Purples')
+            # Also add any constraints to the plot, if those exist and are active at this step i.
+            step = idxs[i]
+            if constraints is not None:
+                for constraint in constraints:
+                    if constraint.traj_range[0] <= step <= constraint.traj_range[1]:
+                        self.robot.render(ax, constraint.q, color='red', cmap='Reds')
+
 
         create_animation_video(fig, animate_fn, n_frames=n_frames, **kwargs)
 
@@ -246,6 +260,8 @@ class PlanningVisualizer:
 
 def create_animation_video(fig, animate_fn, anim_time=5, n_frames=100, video_filepath='video.mp4', **kwargs):
     str_start = "Creating animation"
+    # if ".mp4" in video_filepath:
+    #     video_filepath = video_filepath.replace(".mp4", ".gif")
     print(f'{str_start}...')
     ani = FuncAnimation(
         fig,
