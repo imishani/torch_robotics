@@ -15,10 +15,10 @@ class EnvEmpty2DExtraObjects(EnvEmpty2D):
     def __init__(self, tensor_args=None, **kwargs):
         obj_extra_list = [
             MultiSphereField(
-                np.array([[-0.250, 0.0]]),  # (n, 2) array of sphere centers.
-                # np.array([]),  # (n, 2) array of sphere centers.
-                np.array([.1]),  # (n, ) array of sphere radii.
-                # np.array([]),  # (n, ) array of sphere radii.
+                # np.array([[0.5, 0.5]]),  # (n, 2) array of sphere centers.
+                np.array([]),  # (n, 2) array of sphere centers.
+                # np.array([.04]),  # (n, ) array of sphere radii.
+                np.array([]),  # (n, ) array of sphere radii.
                 tensor_args=tensor_args
             ),
         ]
