@@ -105,9 +105,12 @@ class PlanningVisualizer:
             step = idxs[i]
             if constraints is not None:
                 for constraint in constraints:
-                    if constraint.traj_range[0] <= step <= constraint.traj_range[1]:
-                        self.robot.render(ax, constraint.q, color='red', cmap='Reds')
-
+                    # For Constraint object passed.
+                    if constraint.get_t_range()[0] <= step <= constraint.get_t_range()[1]:
+                        self.robot.render(ax, constraint.get_q(), color='red', cmap='Reds')
+                    # For list of CostCosntaint objects passed.
+                    # if constraint.traj_range[0] <= step <= constraint.traj_range[1]:
+                    #     self.robot.render(ax, constraint.q, color='red', cmap='Reds')
 
         create_animation_video(fig, animate_fn, n_frames=n_frames, **kwargs)
 
