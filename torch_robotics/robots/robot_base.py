@@ -186,3 +186,14 @@ class RobotBase(ABC):
     @abc.abstractmethod
     def render_trajectories(self, ax, trajs=None, **kwargs):
         raise NotImplementedError
+
+    def check_rr_collisions(self, robot_q: torch.tensor) -> torch.tensor:
+        """
+        Check collisions between robots. (Robot-robot collisions).
+        Args:
+            robot_q: (..., n_robots, q_dim)
+        Returns:
+            collisions: (..., n_robots, n_robots), True if there is a collision between the robots.
+        """
+        raise NotImplementedError
+

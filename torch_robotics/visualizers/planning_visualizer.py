@@ -114,6 +114,80 @@ class PlanningVisualizer:
 
         create_animation_video(fig, animate_fn, n_frames=n_frames, **kwargs)
 
+    def animate_multi_robot_trajectories(
+            self, trajs_l=None, start_state_l=None, goal_state_l=None,
+            plot_trajs=False,
+            n_frames=10,
+            constraints=None,
+            colors=None,
+            **kwargs
+    ):
+        assert len(colors) == len(trajs_l)
+
+        assert trajs_l[0].ndim == 3
+        B, H, D = trajs_l[0].shape
+
+        idxs = np.round(np.linspace(0, H - 1, n_frames)).astype(int)
+        trajs_l_selection = []
+        for trajs in trajs_l:
+            trajs_selection = trajs[:, idxs, :]
+            trajs_l_selection.append(trajs_selection)
+
+        fig, ax = create_fig_and_axes(dim=self.env.dim)
+
+        def animate_fn(i):
+            """
+            Draw all the robots at step i for all trajectories.
+            Also add a robot configuration at any constraints.
+            """
+            print(idxs[i], "/", H, end="\r")
+            ax.clear()
+            ax.set_title(f"step: {idxs[i]}/{H-1}")
+            if plot_trajs:
+                for trajs, color, start_state, goal_state in zip(trajs_l_selection, colors, start_state_l, goal_state_l):
+                    self.render_robot_trajectories(
+                        fig=fig,
+                        ax=ax,
+                        trajs=trajs,
+                        start_state=start_state,
+                        goal_state=goal_state,
+                        colors=[color]*len(trajs),
+                        **kwargs
+                    )
+            else:
+                self.env.render(ax)
+
+            for trajs_selection, color, start_state, goal_state in zip(trajs_l_selection, colors, start_state_l, goal_state_l):
+                qs = trajs_selection[:, i, :]  # batch, q_dim
+                if qs.ndim == 1:
+                    qs = qs.unsqueeze(0)  # interface (batch, q_dim)
+                for q in qs:
+                    self.robot.render(
+                        ax, q=q,
+                        color=color,
+                        arrow_length=0.1, arrow_alpha=0.5, arrow_linewidth=1.,
+                        cmap=self.cmaps['collision'] if self.task.compute_collision(q, margin=0.0) else self.cmaps['free'],
+                        **kwargs
+                    )
+
+                if start_state is not None:
+                    self.robot.render(ax, start_state, color='green', cmap='Greens')
+                if goal_state is not None:
+                    self.robot.render(ax, goal_state, color='purple', cmap='Purples')
+                # Also add any constraints to the plot, if those exist and are active at this step i.
+                step = idxs[i]
+                if constraints is not None:
+                    for constraint in constraints:
+                        # For Constraint object passed.
+                        if constraint.get_t_range()[0] <= step <= constraint.get_t_range()[1]:
+                            self.robot.render(ax, constraint.get_q(), color='red', cmap='Reds')
+                        # For list of CostCosntaint objects passed.
+                        # if constraint.traj_range[0] <= step <= constraint.traj_range[1]:
+                        #     self.robot.render(ax, constraint.q, color='red', cmap='Reds')
+
+        create_animation_video(fig, animate_fn, n_frames=n_frames, **kwargs)
+
+
     def animate_opt_iters_robots(
             self, trajs=None, traj_best=None, start_state=None, goal_state=None,
             n_frames=10,

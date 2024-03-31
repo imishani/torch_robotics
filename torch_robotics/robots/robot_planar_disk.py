@@ -27,3 +27,26 @@ class RobotPlanarDisk(RobotPointMass):
         # Robot
         self.radius = radius
         self.link_margins_for_object_collision_checking = [radius]
+
+    def check_rr_collisions(self, robot_q: torch.tensor) -> torch.tensor:
+        """
+        Check collisions between robots. (Robot-robot collisions).
+        Args:
+            robot_q: (..., n_robots, q_dim)
+        Returns:
+            collisions: (..., n_robots, n_robots), True if there is a collision between the robots.
+        """
+        # Check collisions between robots.
+        assert robot_q.dim() >= 2
+        robot_q1 = robot_q.unsqueeze(-2)
+        robot_q2 = robot_q.unsqueeze(-3)
+        # Pairwise distances between robots.
+        robot_dq = robot_q1 - robot_q2
+        # (..., n_robots, n_robots)
+        robot_dq_norm = torch.norm(robot_dq, dim=-1)
+        # (..., n_robots, n_robots)
+        collisions = robot_dq_norm < 3 * self.radius
+        # Set the trace to be False.
+        collisions = collisions & ~torch.eye(collisions.shape[-1], device=collisions.device, dtype=collisions.dtype)
+        return collisions
+
