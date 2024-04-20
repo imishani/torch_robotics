@@ -88,7 +88,8 @@ class PlanningVisualizer:
             qs = trajs_selection[:, i, :]  # batch, q_dim
             if qs.ndim == 1:
                 qs = qs.unsqueeze(0)  # interface (batch, q_dim)
-            for q in qs:
+            print(qs.shape)
+            for i, q in enumerate(qs):
                 self.robot.render(
                     ax, q=q,
                     color=self.colors_robot['collision'] if self.task.compute_collision(q, margin=0.0) else self.colors_robot['free'],
@@ -162,6 +163,10 @@ class PlanningVisualizer:
                 if qs.ndim == 1:
                     qs = qs.unsqueeze(0)  # interface (batch, q_dim)
                 for q in qs:
+                    q_tail = []
+                    for di in range(5):
+                        q_tail.append(trajs_selection[:, i - di, :].squeeze())
+                    kwargs['q_tail'] = q_tail
                     self.robot.render(
                         ax, q=q,
                         color=color,
@@ -335,10 +340,10 @@ class PlanningVisualizer:
         create_animation_video(fig, animate_fn, n_frames=n_frames, **kwargs)
 
 
-def create_animation_video(fig, animate_fn, anim_time=5, n_frames=100, video_filepath='video.mp4', **kwargs):
+def create_animation_video(fig, animate_fn, anim_time=5, n_frames=100, video_filepath='video.gif', **kwargs):
     str_start = "Creating animation"
-    # if ".mp4" in video_filepath:
-    #     video_filepath = video_filepath.replace(".mp4", ".gif")
+    # if ".gif" in video_filepath:
+    #     video_filepath = video_filepath.replace(".gif", ".gif")
     print(f'{str_start}...')
     ani = FuncAnimation(
         fig,

@@ -39,6 +39,14 @@ class RobotPointMass(RobotBase):
                 if self.q_dim == 2:
                     circle1 = plt.Circle(q, margin, color=color, zorder=10)
                     ax.add_patch(circle1)
+                    if 'q_tail' in kwargs:
+                        n_tail = len(kwargs['q_tail'])
+                        q_tail = kwargs['q_tail']
+                        for i, q2 in enumerate(kwargs['q_tail']):
+                            margin_tail = (n_tail - i) / n_tail * margin
+                            alpha = (1 - i / n_tail) / 2
+                            circle2 = plt.Circle(q2, margin_tail, color=color, zorder=10, alpha=alpha, edgecolor=None)
+                            ax.add_patch(circle2)
                 elif self.q_dim == 3:
                     plot_sphere(ax, q, np.zeros_like(q), margin, cmap)
                 else:
